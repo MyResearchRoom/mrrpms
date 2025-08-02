@@ -51,6 +51,8 @@ setupWebSocket(server);
 
 app.use(errorHandler);
 
+app.get("/", (req, res) => res.send("welcome new02082025"));
+
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () =>
