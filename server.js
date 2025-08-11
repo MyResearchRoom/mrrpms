@@ -44,7 +44,7 @@ app.use(xssClean());
 app.use(hpp());
 
 app.use(routes);
-
+app.get("/", (req, res) => res.send("welcome new11082025desrdtgfgyhnwwwew"));
 const server = http.createServer(app);
 
 setupWebSocket(server);
