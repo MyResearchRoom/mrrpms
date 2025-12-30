@@ -14,9 +14,7 @@ const {
   getUnReadNotificationCnt,
 } = require("../controllers/notificationController");
 
-
 const router = Router();
-
 
 router.get(
   "/",
@@ -24,13 +22,11 @@ router.get(
   getNotifications
 );
 
-
 router.patch(
   "/:notificationId",
   authenticate([ADMIN, CLIENT, CLIENT_VENDOR, PROJECT_COORDINATOR]),
   markNotificationAsRead
 );
-
 
 router.patch(
   "/",
@@ -38,13 +34,11 @@ router.patch(
   markAllNotificationsAsRead
 );
 
-
 router.delete(
   "/:notificationId",
   authenticate([ADMIN, CLIENT, CLIENT_VENDOR, PROJECT_COORDINATOR]),
   deleteNotification
 );
-
 
 router.get(
   "/count",

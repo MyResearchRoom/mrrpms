@@ -20,6 +20,8 @@ const {
   getParticipants,
   blockAction,
   removeParticipant,
+  getProjectDocumentsFolderWise,
+  publishDocument,
 } = require("../controllers/projectController");
 
 const {
@@ -82,7 +84,11 @@ router.put(
   updateDocument
 );
 
-router.delete("/document/:documentId", authenticate([ADMIN]), deleteDocument);
+router.delete(
+  "/document/:documentId", 
+  authenticate([ADMIN]), 
+  deleteDocument
+);
 
 router.get(
   "/",
@@ -97,10 +103,24 @@ router.get(
 );
 
 router.get(
-  "/:projectId/documents",
-  authenticate([ADMIN, PROJECT_COORDINATOR, CLIENT, CLIENT_VENDOR]),
+  "/documents/:projectId",
+  authenticate([CLIENT, CLIENT_VENDOR]),
   isAssociatedMember,
   getProjectDocuments
+);
+
+router.get(
+  "/documentsByFolders/:projectId",
+  authenticate([ADMIN, PROJECT_COORDINATOR, CLIENT, CLIENT_VENDOR]),
+  isAssociatedMember,
+  // getProjectDocumentsFolderWise
+  getProjectDocuments
+);
+
+router.patch(
+  "/published-action/:documentId",
+  authenticate([ADMIN]),
+  publishDocument
 );
 
 router.get(

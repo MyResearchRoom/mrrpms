@@ -11,6 +11,7 @@ const countRoutes = require("./countRoutes");
 const notificationRoutes = require("./notificationRoutes");
 const todoListRoutes = require("./todoListRoutes");
 const meetingRoutes = require("./meetingRoutes");
+const projectFolderRoute = require("./projectFolderRoutes");
 
 router.use("/api/auth", authRoutes);
 router.use("/api/projectCoordinator", projectCordRoutes);
@@ -22,5 +23,6 @@ router.use("/api/counts", countRoutes);
 router.use("/api/notification", notificationRoutes);
 router.use("/api/todolist", todoListRoutes);
 router.use("/api/meeting", meetingRoutes);
+router.use("/api/projectFolder", projectFolderRoute);
 
 module.exports = router;

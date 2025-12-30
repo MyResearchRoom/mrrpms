@@ -3,8 +3,11 @@ const {
   Project,
   Participant,
   ProjectDocument,
+  ProjectFolder,
   Client,
   User,
+  ProjectMainFolder,
+  ProjectSubFolder,
   Notification,
   Author,
   sequelize,
@@ -20,8 +23,11 @@ const { sendNotification } = require("../websocket");
 const { convertToIST } = require("../utils/dateConverter");
 const { createNotifications } = require("../services/notificationService");
 
+
+//new upated on 26-12-2025
 exports.createProject = async (req, res) => {
   const { projectName, clientType, clientId } = req.body;
+
   try {
     const project = await Project.create({
       projectName,
@@ -30,13 +36,91 @@ exports.createProject = async (req, res) => {
       clientVendorId: clientType === "CLIENT_VENDOR" ? clientId : null,
     });
 
+    let client;
+    if (clientType === "CLIENT") {
+      client = await Client.findByPk(clientId);
+    } else {
+      client = await User.findByPk(clientId);
+    }
+
+    if (!client) {
+      return res.status(400).json({
+        success: false,
+        message: "Client or Vendor not found",
+      });
+    }
+
+    /*Create main folders */
+
+    const mainFolders = [
+      { key: "DOCUMENTATION", name: `Documentation_${client.name}` },
+      { key: "IMPLEMENTATION", name: `Implementation_${client.name}` },
+      { key: "RESEARCH", name: `Research_Paper_${client.name}` },
+    ];
+
+    const createdMainFolders = await ProjectMainFolder.bulkCreate(
+      mainFolders.map(folder => ({
+        projectId: project.id,
+        name: folder.name,
+        createdBy: req.user.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      { returning: true } 
+    );
+
+    const mainFolderMap = {};
+    createdMainFolders.forEach((folder, index) => {
+      mainFolderMap[mainFolders[index].key] = folder.id;
+    });
+
+    /* Create sub folders */
+    const subFolders = [
+      {
+        mainFolderKey: "DOCUMENTATION",
+        name: "Reference_Paper_File",
+      },
+      {
+        mainFolderKey: "DOCUMENTATION",
+        name: "Rough_Excel_Draft_File",
+      },
+      {
+        mainFolderKey: "DOCUMENTATION",
+        name: "Thesis",
+      },
+      {
+        mainFolderKey: "RESEARCH",
+        name: "Conference_Paper",
+      },
+      {
+        mainFolderKey: "RESEARCH",
+        name: "Research_Paper_Submission_Files",
+      },
+    ];
+
+    await ProjectSubFolder.bulkCreate(
+      subFolders.map(sub => ({
+        projectId: project.id,
+        mainFolderId: mainFolderMap[sub.mainFolderKey],
+        name: sub.name,
+        createdBy: req.user.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+    );
+
     res.status(201).json({
       success: true,
       data: project,
-      message: "Project created successfully.",
+      message: "Project created successfully with default main and sub folders.",
     });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -124,6 +208,8 @@ exports.updateInfo = async (req, res) => {
       message: "Information collected successfully.",
     });
   } catch (error) {
+    console.log(error);
+    
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -175,6 +261,7 @@ exports.addParticipants = async (req, res) => {
       message: "Employee's assigned successfully.",
     });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -212,7 +299,16 @@ exports.uploadDocument = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Please provide document." });
     }
-    const { documentName, documentType } = req.body;
+    let { documentName, documentType , mainFolderId, subFolderId } = req.body;
+
+    mainFolderId = Number(mainFolderId) > 0 ? Number(mainFolderId) : null;
+    subFolderId  = Number(subFolderId) > 0 ? Number(subFolderId) : null;
+
+    const role = req.user.role;
+    const id = req.user.id;
+    const name = req.user.name;
+    const project = req.project;
+
     if (!documentName || documentName.trim().length === 0) {
       return res
         .status(400)
@@ -224,12 +320,6 @@ exports.uploadDocument = async (req, res) => {
         .json({ success: false, message: "Invalid document type." });
     }
 
-    const role = req.user.role;
-    const id = req.user.id;
-    const name = req.user.name;
-
-    const project = req.project;
-
     if (project.isBlock && (role === CLIENT || role === CLIENT_VENDOR)) {
       return res.status(403).json({
         success: false,
@@ -237,6 +327,58 @@ exports.uploadDocument = async (req, res) => {
           "Access is restricted. Please contact your administrator for assistance.",
       });
     }
+    
+    let projectMainFolder = null;
+    let projectSubFolder = null;
+
+    if (!(role === CLIENT || role === CLIENT_VENDOR)) {
+      if (mainFolderId === null) {
+        return res.status(400).json({
+          success: false,
+          message: "Main folder id is required.",
+        });
+      }
+
+      projectMainFolder = await ProjectMainFolder.findOne({
+        where: {
+          id: mainFolderId,
+          projectId: project.id,
+        },
+     });
+
+      if (!projectMainFolder) {
+        return res.status(403).json({
+          success: false,
+          message: "Project main folder not exists for provided folder id",
+        });
+      }
+
+      // Only check subFolderId if main folder is Documentation or Research Paper
+      const mainFolderName = projectMainFolder.name.toLowerCase();
+      if ((mainFolderName.includes("documentation") || mainFolderName.includes("research_paper")) && subFolderId === null) {
+        return res.status(400).json({
+          success: false,
+          message: "Sub folder id is required for Documentation or Research Paper folders.",
+        });
+      }
+
+      if (subFolderId) {
+        projectSubFolder = await ProjectSubFolder.findOne({
+          where: {
+            id: subFolderId,
+            projectId: project.id,
+            mainFolderId: mainFolderId,
+          },
+        });
+
+        if (!projectSubFolder) {
+          return res.status(403).json({
+            success: false,
+            message: "Project sub folder not exists for provided sub folder id",
+          });
+        }
+      }
+    }   
 
     const document = `data:${
       req.file.mimetype
@@ -256,6 +398,9 @@ exports.uploadDocument = async (req, res) => {
         uploadBy,
         clientId: role === CLIENT ? id : null,
         userId: role === CLIENT ? null : id,
+        isPublished : role === CLIENT || role === CLIENT_VENDOR ? true : false,
+        mainFolderId : role === CLIENT || role === CLIENT_VENDOR ? null : mainFolderId,
+        subFolderId: role === CLIENT || role === CLIENT_VENDOR ? null : subFolderId,
       },
       {
         transaction,
@@ -268,7 +413,7 @@ exports.uploadDocument = async (req, res) => {
       message: `${req.user.name} uploaded ${documentName} document for project ${project.projectName}(${project.id}).`,
     };
 
-    // const participants = await Participant.findAll({
+    //{ const participants = await Participant.findAll({
     //   where: {
     //     projectId: project.id,
     //     ...(role === PROJECT_COORDINATOR
@@ -342,7 +487,7 @@ exports.uploadDocument = async (req, res) => {
 
     // await Notification.bulkCreate(notificationData, {
     //   transaction,
-    // });
+    // });}
 
     await createNotifications(
       project,
@@ -462,7 +607,7 @@ exports.getProjects = async (req, res) => {
         "assignedDate",
         "status",
         "priority",
-        "isBlock",
+        // "isBlock",
       ],
       include: includes,
       offset: offset,
@@ -638,7 +783,156 @@ exports.getProjectById = async (req, res) => {
   }
 };
 
+//new upated on 26-12-2025
 exports.getProjectDocuments = async (req, res) => {
+  try {
+    const { page, limit, offset, searchTerm } = validateQueryParams({
+      ...req.query,
+    });
+    const {mainFolderId,subFolderId,documentType } = req.query;
+
+    const whereClause = {
+      projectId: req.params.projectId,
+      uploadBy: req.query.uploadBy || "CLIENT",
+    };
+
+    if (searchTerm) {
+      whereClause.documentName = {
+        [Op.like]: `%${searchTerm}%`,
+      };
+    }
+
+    // Role-based document visibility
+    if (req.user.role === CLIENT || req.user.role === CLIENT_VENDOR) {
+      whereClause[Op.or] = [
+        { documentType: "reference",
+          isPublished: true,
+        },
+        { documentType: "important" ,
+          isPublished: true,
+        },
+        {
+          documentType: "final",
+          isPublished: true,
+        },
+      ];
+    } else{
+      const applyIdFilter = (value) =>
+        value && !isNaN(value) && parseInt(value) !== 0;
+
+      if (applyIdFilter(mainFolderId)) {
+        whereClause.mainFolderId = parseInt(mainFolderId);
+      }
+
+      if (applyIdFilter(subFolderId)) {
+        whereClause.subFolderId = parseInt(subFolderId);
+      }
+    }
+
+    if (["reference", "important", "final"].includes(documentType)) {
+      if (
+        (req.user.role === CLIENT || req.user.role === CLIENT_VENDOR) 
+      ) {
+        whereClause.isPublished = true;
+      } else {
+        whereClause.documentType = documentType;
+      }
+    }
+
+    const project = req.project;
+    if (
+      project.isBlock &&
+      (req.user.role === CLIENT || req.user.role === CLIENT_VENDOR)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Access is restricted. Please contact your administrator for assistance.",
+      });
+    }
+
+    const { count, rows } = await ProjectDocument.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: Client,
+          attributes: ["id", "name"],
+          as: "client",
+        },
+        {
+          model: User,
+          attributes: ["id", "name"],
+          as: "vendorClient",
+        },
+        {
+          model: Project,
+          attributes: ["id"],
+          as: "project",
+        },
+      ],
+      order: [["uploadDate", "DESC"]],
+      offset,
+      limit,
+    });
+
+    const data = rows.map((doc) => ({
+      id: doc.id,
+      documentName: doc.documentName,
+      documentType: doc.documentType,
+      fileName: doc.fileName,
+      uploadDate: convertToIST(doc.uploadDate),
+      uploadBy: doc.client ? doc.client.name : doc.vendorClient.name,
+      isPublished: doc.isPublished, 
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        data,
+        pagination: {
+          totalItems: count,
+          totalPages: Math.ceil(count / limit),
+          currentPage: page,
+          itemsPerPage: limit,
+        },
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.publishDocument = async (req, res) => {
+  const { documentId } = req.params;
+
+  const document = await ProjectDocument.findByPk(documentId);
+
+  if (!document) {
+    return res.status(404).json({ success: false, message: "Document not found" });
+  }
+
+  // if (document.documentType !== "final") {
+  //   return res.status(400).json({
+  //     success: false,
+  //     message: "Only final documents can be published",
+  //   });
+  // }
+
+  const isPublishing = !document.isPublished;
+  document.isPublished=isPublishing;
+  await document.save();
+
+  res.json({
+    success: true,
+    message: `Document ${
+        isPublishing ? "published" : "unpublished"
+      } successfully.`,
+  });
+};
+
+exports.getProjectDocumentsFolderWise = async (req, res) => {
   try {
     const { page, limit, offset, searchTerm } = validateQueryParams({
       ...req.query,
@@ -646,8 +940,9 @@ exports.getProjectDocuments = async (req, res) => {
     const { documentType } = req.query;
 
     const whereClause = {
-      projectId: req.params.projectId,
-      uploadBy: req.query.uploadBy || "CLIENT",
+      projectId : req.params.projectId,
+      folderId : req.params.folderId,
+      uploadBy : req.query.uploadBy || "CLIENT",
     };
 
     if (searchTerm) {
@@ -718,6 +1013,8 @@ exports.getProjectDocuments = async (req, res) => {
       },
     });
   } catch (error) {
+    console.log(error);
+    
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -798,14 +1095,11 @@ exports.updateDocument = async (req, res) => {
     }
 
     await Project.update(
-      {
-        updatedAt: new Date(),
-      },
+      { updatedAt: new Date() },
       {
         where: {
-          id: req.params.documentId,
+          id: document.projectId,
         },
-        transaction,
       }
     );
 

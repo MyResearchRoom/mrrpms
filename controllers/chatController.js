@@ -116,6 +116,8 @@ exports.sendMessage = async (req, res) => {
       message: "Message send successfully",
     });
   } catch (error) {
+    console.log(error);
+    
     if (transaction) await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }

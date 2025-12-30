@@ -67,10 +67,10 @@ module.exports = (sequelize) => {
       deadline: DataTypes.DATE,
       additionalNote: DataTypes.TEXT,
 
-      isBlock: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
+      // isBlock: {
+      //   type: DataTypes.BOOLEAN,
+      //   defaultValue: false,
+      // },
     },
     {
       sequelize,

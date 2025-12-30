@@ -7,6 +7,14 @@ module.exports = (sequelize) => {
         foreignKey: "projectId",
         as: "project",
       });
+      ProjectDocument.belongsTo(models.ProjectMainFolder, {
+        foreignKey: "mainFolderId",
+        as: "folder",
+      });
+       ProjectDocument.belongsTo(models.ProjectSubFolder, {
+        foreignKey: "subFolderId",
+        as: "subFolder",
+      });
       ProjectDocument.belongsTo(models.Client, {
         foreignKey: "clientId",
         as: "client",
@@ -27,6 +35,18 @@ module.exports = (sequelize) => {
       projectId: {
         type: DataTypes.STRING,
         allowNull: false,
+      },
+      mainFolderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      subFolderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true, 
+      },
+      isPublished: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
       },
       documentName: {
         type: DataTypes.STRING,
