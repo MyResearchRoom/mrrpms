@@ -789,7 +789,7 @@ exports.getProjectDocuments = async (req, res) => {
     const { page, limit, offset, searchTerm } = validateQueryParams({
       ...req.query,
     });
-    const {mainFolderId,subFolderId,documentType } = req.query;
+    const {mainFolderId,subFolderId,documentType,beforeDate } = req.query;
 
     const whereClause = {
       projectId: req.params.projectId,
@@ -801,6 +801,19 @@ exports.getProjectDocuments = async (req, res) => {
         [Op.like]: `%${searchTerm}%`,
       };
     }
+
+    if (beforeDate && req.user.role !== CLIENT && req.user.role !== CLIENT_VENDOR) {
+      const parsedDate = new Date(beforeDate);
+      if (!isNaN(parsedDate)) {
+        parsedDate.setHours(23, 59, 59, 999);
+
+        whereClause.uploadDate = {
+          [Op.lte]: parsedDate,
+        };
+      }
+    }
+
+    
 
     // Role-based document visibility
     if (req.user.role === CLIENT || req.user.role === CLIENT_VENDOR) {
