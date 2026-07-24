@@ -552,9 +552,11 @@ exports.getProjects = async (req, res) => {
       whereClause[Op.or] = [
         { id: { [Op.like]: `%${searchTerm}%` } },
         { projectName: { [Op.like]: `%${searchTerm}%` } },
-        { clientName: { [Op.like]: `%${searchTerm}%` } },
-        { clientEmail: { [Op.like]: `%${searchTerm}%` } },
+        { "$client.name$": { [Op.like]: `%${searchTerm}%` } },
+        { "$client.email$": { [Op.like]: `%${searchTerm}%` } },
         { "$client.mobileNumber$": { [Op.like]: `%${searchTerm}%` } },
+        { "$clientVendor.name$": { [Op.like]: `%${searchTerm}%` } },
+        { "$clientVendor.email$": { [Op.like]: `%${searchTerm}%` } },
         { "$clientVendor.mobileNumber$": { [Op.like]: `%${searchTerm}%` } },
       ];
     }
