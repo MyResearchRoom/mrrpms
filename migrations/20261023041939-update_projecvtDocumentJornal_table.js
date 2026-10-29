@@ -10,7 +10,7 @@ module.exports = {
       allowNull: true,
       after: "projectId",
       references: {
-        model: "journalsmaster",
+        model: "journalsMaster",
         key: "id",
       },
       onUpdate: "CASCADE",
