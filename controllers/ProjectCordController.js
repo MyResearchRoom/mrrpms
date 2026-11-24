@@ -192,7 +192,7 @@ exports.changePasswordProjectCoordinator = async (req, res) => {
     }
 
     const coordinator = await User.findOne({
-      where: { id, role: "PROJECT_COORDINATOR" },
+      where: { id },
     });
 
     if (!coordinator) {
